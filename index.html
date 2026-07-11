@@ -20,22 +20,11 @@
     .btn-blue { background: #1a237e; color: white; font-weight: bold; }
     .btn-green { background: #2e7d32; color: white; font-weight: bold; }
     .btn-red { background: #c62828; color: white; font-weight: bold; }
-    .config-box { background: #fff9c4; border: 1px solid #fbc02d; padding: 15px; border-radius: 10px; margin-bottom: 15px; display: none; text-align: right; }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <div style="text-align: left; margin-bottom: 10px;">
-    <button onclick="toggleConfig()" style="background: none; border: none; font-size: 14px; cursor: pointer; font-family: 'Cairo'; color: #555;">⚙️ إعدادات الرابط</button>
-  </div>
-
-  <div id="configBox" class="config-box">
-    <label style="font-weight: bold; font-size: 13px; color: #333;">رابط الـ Web App الحالي لجوجل سكريبت:</label>
-    <input type="text" id="urlInput" placeholder="https://script.google.com/macros/s/.../exec">
-    <button onclick="saveURL()" class="btn btn-blue" style="padding: 5px 15px; font-size: 13px; width: auto; margin: 5px 0 0 0;">💾 حفظ الرابط في المتصفح</button>
-  </div>
-
   <div class="header">
     <h2>📷 تسجيل حضور الخدام</h2>
     <small style="opacity:0.8;">امسح QR Code الخاص بالخادم لتسجيل حضوره</small>
@@ -59,9 +48,7 @@
 </div>
 
 <script>
-  // جلب الرابط المخزن في ذاكرة المتصفح تلقائياً
-  var SCRIPT_URL = localStorage.getItem("apps_script_url") || "";
-
+  var SCRIPT_URL = "";
   var html5QrCode;
   var isScanning = false;
   var selectedCourse = "";
@@ -70,37 +57,30 @@
   var coursesList = [];
 
   window.onload = function() {
-    document.getElementById("urlInput").value = SCRIPT_URL;
-    
-    if (!SCRIPT_URL) {
-      showResult("⚠️ من فضلك اضغط على زر '⚙️ إعدادات الرابط' في الأعلى والِصق رابط جوجل ويب آب أولاً لتفعيل النظام.", "error");
-      document.getElementById("configBox").style.display = "block";
-      document.getElementById("courseSelect").innerHTML = '<option value="">⚠️ الرابط غير مضبوط</option>';
-      return;
+    // التقاط الرابط المرسل من زرار النظام
+    const urlParams = new URLSearchParams(window.location.search);
+    let dynamicUrl = urlParams.get('url');
+
+    if (dynamicUrl) {
+      // تنظيف الرابط واعتماده
+      if (dynamicUrl.includes("?")) { dynamicUrl = dynamicUrl.split("?")[0]; }
+      SCRIPT_URL = dynamicUrl;
+      
+      // إخفاء الرابط الطويل من شريط المتصفح ليكون الشكل احترافياً
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      // تحميل الكورسات فوراً
+      loadCourses();
+    } else {
+      // لو الإداري فتح الصفحة دي من بره النظام، نرفض التشغيل ونوجهه للصح
+      showResult("⚠️ يرجى فتح صفحة الكاميرا من خلال الزر المخصص داخل النظام الرئيسي.", "error");
+      document.getElementById("courseSelect").innerHTML = '<option value="">⚠️ غير متصل بالنظام</option>';
     }
-    loadCourses();
   };
-
-  // وظائف إدارة الرابط بدون كود
-  function toggleConfig() {
-    var box = document.getElementById("configBox");
-    box.style.display = box.style.display === "block" ? "none" : "block";
-  }
-
-  function saveURL() {
-    var inputVal = document.getElementById("urlInput").value.trim();
-    if (!inputVal) { alert("الرجاء إدخال رابط صحيح"); return; }
-    // تنظيف الرابط من أي بارامترات زائدة لضمان استقرار العمل
-    if (inputVal.includes("?")) { inputVal = inputVal.split("?")[0]; }
-    
-    localStorage.setItem("apps_script_url", inputVal);
-    alert("✅ تم حفظ الرابط بنجاح في متصفحك الحالي! سيتم إعادة تحميل الصفحة للتفعيل.");
-    window.location.reload();
-  }
 
   function goBackHome() {
     if (SCRIPT_URL) { window.location.href = SCRIPT_URL + "?page=form"; } 
-    else { alert("رابط الرئيسية غير متاح، اضبط الإعدادات أولاً."); }
+    else { alert("لا يمكن العودة. يرجى فتح النظام من الرابط الأساسي الخاص بك."); }
   }
 
   function loadCourses() {
@@ -124,7 +104,7 @@
       opt.text = c.course + " (" + c.term + ")";
       select.appendChild(opt);
     });
-    showResult("✅ تم تحميل " + data.length + " كورس بنجاح", "success");
+    showResult("✅ تم الاتصال بالنظام وتحميل الكورسات بنجاح", "success");
   }
 
   function updateSessions() {

@@ -1,189 +1,358 @@
 <!DOCTYPE html>
-<html dir="rtl">
+<html dir="rtl" lang="ar">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>تسجيل حضور الخدام</title>
-  <script src="https://cdn.jsdelivr.net/npm/html5-qrcode/minified/html5-qrcode.min.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
-  <style>
-    body { font-family: 'Cairo', sans-serif; background: #f0f2f5; margin: 0; padding: 20px; text-align: center; }
-    .container { max-width: 500px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-    .header { background: linear-gradient(135deg, #1a237e, #283593); color: white; padding: 15px; border-radius: 10px; margin-bottom: 20px; }
-    select, input[type="text"] { padding: 10px; border-radius: 8px; border: 1px solid #ccc; width: 100%; margin-bottom: 10px; box-sizing: border-box; font-family: 'Cairo'; }
-    #reader { width: 100%; max-width: 400px; margin: 0 auto; border-radius: 10px; overflow: hidden; }
-    #result { margin-top: 20px; padding: 15px; border-radius: 8px; display: none; font-weight: bold; }
-    .success { background: #d4edda; color: #155724; display: block; }
-    .error { background: #f8d7da; color: #721c24; display: block; }
-    .info { background: #d1ecf1; color: #0c5460; display: block; }
-    .btn { padding: 12px 30px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; margin: 5px; width: 100%; box-sizing: border-box; font-family: 'Cairo'; }
-    .btn-blue { background: #1a237e; color: white; font-weight: bold; }
-    .btn-green { background: #2e7d32; color: white; font-weight: bold; }
-    .btn-red { background: #c62828; color: white; font-weight: bold; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a237e">
+<title>تسجيل حضور الخدام</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root {
+    --navy:#1a237e; --navy2:#283593; --gold:#ffd700;
+    --green:#2e7d32; --green-bg:#e8f5e9;
+    --red:#c62828;   --red-bg:#ffebee;
+    --amber:#ef6c00; --amber-bg:#fff8e1;
+    --line:#e2e5ef;  --muted:#7a8095;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body {
+    margin:0; padding:14px; background:#eef0f6; color:#1f2233;
+    font-family:'Cairo',system-ui,-apple-system,'Segoe UI',sans-serif; font-size:15px;
+  }
+  .wrap { max-width:520px; margin:0 auto; }
+
+  .head {
+    background:linear-gradient(135deg,var(--navy),var(--navy2)); color:#fff;
+    border-radius:16px; padding:18px 16px; text-align:center; margin-bottom:14px;
+    position:relative; overflow:hidden; box-shadow:0 4px 16px rgba(16,21,80,.15);
+  }
+  .head::after { content:''; position:absolute; inset-inline:0; bottom:0; height:3px;
+                 background:linear-gradient(90deg,transparent,var(--gold),transparent); }
+  .head h1 { margin:0; font-size:19px; }
+  .head p  { margin:6px 0 0; font-size:13px; opacity:.9; }
+
+  .card { background:#fff; border:1px solid var(--line); border-radius:16px;
+          padding:16px; margin-bottom:14px; box-shadow:0 1px 3px rgba(16,21,80,.08); }
+
+  #session { text-align:center; }
+  #session .course { font-weight:700; color:var(--navy); font-size:17px; }
+  #session .meta   { color:var(--muted); font-size:13px; margin-top:4px; }
+
+  #reader { border-radius:14px; overflow:hidden; background:#000; min-height:220px; }
+  #reader video { width:100% !important; display:block; }
+  /* إخفاء عناصر المكتبة الافتراضية الزائدة */
+  #reader__dashboard_section_csr > div:nth-child(2) { display:none !important; }
+  #reader__dashboard_section_swaplink { color:var(--navy) !important; font-family:inherit !important; }
+
+  .btn {
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    width:100%; min-height:50px; border:none; border-radius:12px;
+    font-family:inherit; font-size:16px; font-weight:700; color:#fff;
+    background:var(--navy); cursor:pointer; margin-top:10px;
+  }
+  .btn:disabled { opacity:.5; }
+  .btn-green { background:var(--green); }
+  .btn-ghost { background:#fff; color:var(--navy); border:2px solid var(--navy); }
+
+  .result { border-radius:14px; padding:16px; margin-bottom:14px;
+            font-weight:700; line-height:1.8; display:none; text-align:center; }
+  .result.show { display:block; animation:pop .3s ease; }
+  .ok   { background:var(--green-bg); color:var(--green); border:1px solid #a5d6a7; }
+  .err  { background:var(--red-bg);   color:var(--red);   border:1px solid #ef9a9a; }
+  .warn { background:var(--amber-bg); color:var(--amber); border:1px solid #ffcc80; }
+  .info { background:#e8eaf6; color:var(--navy); border:1px solid #c5cae9; }
+  @keyframes pop { from { opacity:0; transform:scale(.96); } }
+
+  .spinner { width:18px; height:18px; border:2.5px solid rgba(255,255,255,.35);
+             border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite;
+             display:inline-block; vertical-align:middle; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  .counter { text-align:center; color:var(--muted); font-size:13px; margin-top:10px; }
+  .counter b { color:var(--navy); font-size:16px; }
+
+  .log { max-height:190px; overflow-y:auto; margin-top:10px; }
+  .log-row { display:flex; justify-content:space-between; gap:8px;
+             padding:8px 4px; border-bottom:1px solid var(--line); font-size:13px; }
+  .log-row span:last-child { color:var(--muted); font-size:12px; white-space:nowrap; }
+
+  .manual { display:flex; gap:8px; margin-top:10px; }
+  .manual input { flex:1; padding:12px; border:1.5px solid var(--line);
+                  border-radius:10px; font-family:inherit; font-size:16px; text-align:center; }
+  .manual button { flex:none; width:90px; min-height:auto; margin:0; }
+
+  .fatal { background:#fff; border-radius:16px; padding:30px 20px; text-align:center;
+           color:var(--red); font-weight:700; line-height:1.9; }
+</style>
 </head>
 <body>
 
-<div class="container">
-  <div class="header">
-    <h2>📷 تسجيل حضور الخدام</h2>
-    <small style="opacity:0.8;">امسح QR Code الخاص بالخادم لتسجيل حضوره</small>
+<div class="wrap">
+  <div class="head">
+    <h1>📷 تسجيل حضور الخدام</h1>
+    <p>خدمة القديس برنابا الرسول لإعداد الخدام</p>
   </div>
-  
-  <div style="background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
-    <select id="courseSelect" onchange="updateSessions()">
-      <option value="">-- جاري تحميل الكورسات... --</option>
-    </select>
-    <select id="sessionSelect">
-      <option value="">-- اختر المحاضرة --</option>
-    </select>
-    <button onclick="setCourseAndSession()" class="btn btn-blue">✅ تأكيد الكورس والمحاضرة</button>
+
+  <div id="app" style="display:none">
+    <div class="card" id="session">
+      <div class="course" id="courseName">—</div>
+      <div class="meta"  id="sessionMeta">—</div>
+    </div>
+
+    <div class="result" id="result"></div>
+
+    <div class="card">
+      <div id="reader"></div>
+      <button class="btn btn-green" id="againBtn" style="display:none">🔄 مسح خادم آخر</button>
+      <button class="btn btn-ghost" id="startBtn" style="display:none">▶️ تشغيل الكاميرا</button>
+
+      <div class="manual">
+        <input id="manualCode" placeholder="أو اكتب الكود يدويًا" autocomplete="off">
+        <button class="btn" id="manualBtn" style="margin-top:0">تسجيل</button>
+      </div>
+
+      <div class="counter">تم تسجيل <b id="count">0</b> خادم في هذه الجلسة</div>
+    </div>
+
+    <div class="card" id="logCard" style="display:none">
+      <b style="color:var(--navy)">سجل هذه الجلسة</b>
+      <div class="log" id="log"></div>
+    </div>
   </div>
-  
-  <div id="reader"></div>
-  <div id="result" style="display:none;"></div>
-  
-  <button onclick="restartScanner()" class="btn btn-green" style="display:none;" id="scanAgainBtn">🔄 مسح مرة أخرى</button>
-  <button id="backBtn" onclick="goBackHome()" class="btn btn-red">🏠 العودة للرئيسية</button>
+
+  <div id="fatal" class="fatal" style="display:none"></div>
 </div>
 
 <script>
-  var SCRIPT_URL = "";
-  var html5QrCode;
-  var isScanning = false;
-  var selectedCourse = "";
-  var selectedSession = "";
-  var selectedTerm = "";
-  var coursesList = [];
+(function () {
+  'use strict';
 
-  window.onload = function() {
-    // التقاط الرابط المرسل من زرار النظام
-    const urlParams = new URLSearchParams(window.location.search);
-    let dynamicUrl = urlParams.get('url');
+  /* ====================================================================
+     البروتوكول الجديد:
+     هذه الصفحة لا ترسل اسم الكورس ولا رقم المحاضرة إطلاقًا.
+     ترسل كود الخادم + مفتاح الجلسة الذي أصدره المسؤول من لوحة التحكم،
+     والسيرفر هو من يحدد الكورس والمحاضرة من الجلسة.
+     ==================================================================== */
 
-    if (dynamicUrl) {
-      // تنظيف الرابط واعتماده
-      if (dynamicUrl.includes("?")) { dynamicUrl = dynamicUrl.split("?")[0]; }
-      SCRIPT_URL = dynamicUrl;
-      
-      // إخفاء الرابط الطويل من شريط المتصفح ليكون الشكل احترافياً
-      window.history.replaceState({}, document.title, window.location.pathname);
-      
-      // تحميل الكورسات فوراً
-      loadCourses();
-    } else {
-      // لو الإداري فتح الصفحة دي من بره النظام، نرفض التشغيل ونوجهه للصح
-      showResult("⚠️ يرجى فتح صفحة الكاميرا من خلال الزر المخصص داخل النظام الرئيسي.", "error");
-      document.getElementById("courseSelect").innerHTML = '<option value="">⚠️ غير متصل بالنظام</option>';
-    }
-  };
+  var params  = new URLSearchParams(location.search);
+  var API_URL = params.get('url') || '';
+  var KEY     = params.get('key') || '';
 
-  function goBackHome() {
-    if (SCRIPT_URL) { window.location.href = SCRIPT_URL + "?page=form"; } 
-    else { alert("لا يمكن العودة. يرجى فتح النظام من الرابط الأساسي الخاص بك."); }
-  }
+  var scanner = null;
+  var running = false;      // الكاميرا تعمل فعليًا
+  var busy    = false;      // طلب قيد المعالجة — يمنع الإرسال المكرر
+  var count   = 0;
+  var lastCode = '', lastAt = 0;
 
-  function loadCourses() {
-    showResult("⏳ جاري تحميل الكورسات...", "info");
-    var script = document.createElement('script');
-    script.src = SCRIPT_URL + "?api=getCourses&callback=handleCoursesResponse";
-    document.body.appendChild(script);
-  }
+  var $ = function (id) { return document.getElementById(id); };
 
-  function handleCoursesResponse(data) {
-    if (data.error) { showResult("❌ " + data.error, "error"); return; }
-    if (!data || data.length === 0) { showResult("⚠️ لا توجد كورسات نشطة حالياً في النظام.", "error"); return; }
-    
-    coursesList = data;
-    var select = document.getElementById('courseSelect');
-    select.innerHTML = '<option value="">-- اختر الكورس --</option>';
-    
-    data.forEach(function(c, index) {
-      var opt = document.createElement('option');
-      opt.value = index;
-      opt.text = c.course + " (" + c.term + ")";
-      select.appendChild(opt);
-    });
-    showResult("✅ تم الاتصال بالنظام وتحميل الكورسات بنجاح", "success");
-  }
+  /* -------------------------------------------------- JSONP -------- */
+  var jsonpSeq = 0;
 
-  function updateSessions() {
-    var index = document.getElementById('courseSelect').value;
-    var sessionSelect = document.getElementById('sessionSelect');
-    sessionSelect.innerHTML = '<option value="">-- اختر المحاضرة --</option>';
-    if (index === "" || !coursesList[index]) return;
-    
-    var course = coursesList[index];
-    var maxSessions = course.sessionsCount || 12;
-    for (var i = 1; i <= maxSessions; i++) {
-      var opt = document.createElement('option');
-      opt.value = i; opt.text = "المحاضرة " + i;
-      sessionSelect.appendChild(opt);
-    }
-  }
+  function jsonp(query, timeoutMs) {
+    return new Promise(function (resolve, reject) {
+      var cbName = 'qrcb_' + (++jsonpSeq) + '_' + Date.now();
+      var script = document.createElement('script');
+      var timer;
 
-  function setCourseAndSession() {
-    var index = document.getElementById('courseSelect').value;
-    var session = document.getElementById('sessionSelect').value;
-    if (index === "" || session === "") { showResult("⚠️ من فضلك حدد الكورس والمحاضرة", "error"); return; }
-    
-    var course = coursesList[index];
-    selectedCourse = course.course;
-    selectedTerm = course.term;
-    selectedSession = session;
-    
-    showResult("✅ تم تحديد: " + selectedCourse + " - محاضرة " + selectedSession, "success");
-    if (html5QrCode) { html5QrCode.stop().then(startScanner).catch(startScanner); } 
-    else { startScanner(); }
-  }
+      function cleanup() {
+        clearTimeout(timer);
+        try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
+        if (script.parentNode) script.parentNode.removeChild(script);
+      }
 
-  function startScanner() {
-    if (isScanning) return;
-    document.getElementById('reader').innerHTML = '';
-    html5QrCode = new Html5Qrcode("reader");
-    
-    html5QrCode.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
-      onScanSuccess,
-      function(err) {}
-    ).then(function() {
-      isScanning = true;
-      showResult("📷 الكاميرا جاهزة. امسح QR Code الخاص بالخادم.", "info");
-    }).catch(function(err) {
-      showResult("❌ تعذر فتح الكاميرا: " + err, "error");
+      window[cbName] = function (data) { cleanup(); resolve(data); };
+
+      timer = setTimeout(function () {
+        cleanup();
+        reject(new Error('انتهت مهلة الاتصال بالسيرفر. تحقق من الإنترنت.'));
+      }, timeoutMs || 25000);
+
+      script.onerror = function () { cleanup(); reject(new Error('تعذّر الوصول للسيرفر.')); };
+      script.src = API_URL + (API_URL.indexOf('?') > -1 ? '&' : '?') +
+                   query + '&callback=' + cbName + '&_=' + Date.now();
+      document.body.appendChild(script);
     });
   }
 
-  function onScanSuccess(decodedText, decodedResult) {
-    if (!isScanning) return;
-    html5QrCode.stop().then(function() { isScanning = false; });
-    showResult("⏳ جاري تسجيل الحضور وفحص التأخير المسموح...", "info");
-    
-    var script = document.createElement('script');
-    script.src = SCRIPT_URL + "?api=scanQR&decodedText=" + encodeURIComponent(decodedText) + 
-                 "&course=" + encodeURIComponent(selectedCourse) + 
-                 "&session=" + encodeURIComponent(selectedSession) + 
-                 "&term=" + encodeURIComponent(selectedTerm) + 
-                 "&callback=handleScanResponse";
-    document.body.appendChild(script);
+  /* -------------------------------------------------- الواجهة ------ */
+
+  function show(message, type) {
+    var el = $('result');
+    el.innerHTML = message;
+    el.className = 'result show ' + type;
   }
 
-  function handleScanResponse(data) {
-    showResult(data.message, data.success ? "success" : "error");
-    document.getElementById('scanAgainBtn').style.display = 'block';
+  function hideResult() { $('result').className = 'result'; }
+
+  function addLog(name, status, good) {
+    $('logCard').style.display = 'block';
+    var row = document.createElement('div');
+    row.className = 'log-row';
+    row.innerHTML = '<span>' + (good ? '✅ ' : '⚠️ ') + escapeHtml(name) + '</span>' +
+                    '<span>' + escapeHtml(status) + '</span>';
+    $('log').insertBefore(row, $('log').firstChild);
   }
 
-  function restartScanner() {
-    document.getElementById('result').style.display = 'none';
-    document.getElementById('scanAgainBtn').style.display = 'none';
-    startScanner();
+  function escapeHtml(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  function showResult(message, type) {
-    var resultDiv = document.getElementById('result');
-    resultDiv.innerHTML = message; resultDiv.className = type; resultDiv.style.display = 'block';
+  function fatal(message) {
+    $('app').style.display = 'none';
+    $('fatal').style.display = 'block';
+    $('fatal').innerHTML = message;
   }
+
+  /* -------------------------------------------------- البدء -------- */
+
+  if (!API_URL || !KEY) {
+    fatal('⛔ رابط غير مكتمل.<br><br>' +
+          'افتح هذه الصفحة من زر «فتح جلسة مسح» في لوحة التحكم، ' +
+          'ولا تحفظ الرابط في المفضلة لأن المفتاح مؤقت.');
+    return;
+  }
+
+  $('app').style.display = 'block';
+  show('<span class="spinner" style="border-color:rgba(26,35,126,.3);border-top-color:#1a237e"></span> جاري التحقق من الجلسة…', 'info');
+
+  jsonp('api=scanInfo&key=' + encodeURIComponent(KEY))
+    .then(function (res) {
+      if (!res || !res.success) {
+        fatal('⛔ ' + escapeHtml((res && res.message) || 'جلسة المسح غير صالحة.') +
+              '<br><br>اطلب رابطًا جديدًا من المسؤول.');
+        return;
+      }
+      $('courseName').textContent   = res.courseName;
+      $('sessionMeta').textContent  = res.sessionTitle + '  •  ' + res.date;
+      hideResult();
+      startCamera();
+    })
+    .catch(function (err) {
+      fatal('⛔ ' + escapeHtml(err.message));
+    });
+
+  /* -------------------------------------------------- الكاميرا ----- */
+
+  /**
+   * الإصلاح المهم: النسخة القديمة كانت تضبط isScanning داخل .then()
+   * فتُستدعى startScanner قبل اكتمال الإيقاف وتخرج فورًا — والكاميرا لا تعود.
+   * هنا كل شيء يمرّ بسلسلة وعود مرتّبة.
+   */
+  function startCamera() {
+    if (running) return Promise.resolve();
+
+    $('startBtn').style.display = 'none';
+    if (!scanner) scanner = new Html5Qrcode('reader', { verbose: false });
+
+    return scanner.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 240, height: 240 }, aspectRatio: 1.0 },
+      onScan,
+      function () { /* أخطاء القراءة العادية أثناء التحريك — تُتجاهل */ }
+    ).then(function () {
+      running = true;
+    }).catch(function (err) {
+      running = false;
+      $('startBtn').style.display = 'flex';
+      show('⛔ تعذّر فتح الكاميرا.<br>' +
+           '<span style="font-weight:400;font-size:13px">' +
+           'تأكد من السماح بالوصول للكاميرا في المتصفح، وأن الصفحة تُفتح عبر https.' +
+           '</span>', 'err');
+    });
+  }
+
+  function stopCamera() {
+    if (!scanner || !running) return Promise.resolve();
+    return scanner.stop()
+      .then(function () { running = false; })
+      .catch(function () { running = false; });
+  }
+
+  function onScan(decodedText) {
+    if (busy) return;
+
+    // المكتبة قد تُطلق نفس القراءة عدة مرات — نتجاهل التكرار خلال 3 ثوانٍ
+    var now = Date.now();
+    if (decodedText === lastCode && now - lastAt < 3000) return;
+    lastCode = decodedText; lastAt = now;
+
+    submit(decodedText);
+  }
+
+  /* -------------------------------------------------- الإرسال ----- */
+
+  function submit(code) {
+    if (busy) return;
+    busy = true;
+
+    stopCamera().then(function () {
+      show('<span class="spinner" style="border-color:rgba(26,35,126,.3);border-top-color:#1a237e"></span> جاري التسجيل…', 'info');
+
+      return jsonp('api=scanQR&key=' + encodeURIComponent(KEY) +
+                   '&decodedText=' + encodeURIComponent(code));
+    }).then(function (res) {
+      busy = false;
+      if (!res) throw new Error('رد غير مفهوم من السيرفر.');
+
+      if (res.success) {
+        count++;
+        $('count').textContent = count;
+        show(res.message, 'ok');
+        addLog(res.servantName || code, res.status || 'تم', true);
+      } else {
+        var isWarn = /مسجّل بالفعل|مسجل بالفعل/.test(res.message || '');
+        show(res.message, isWarn ? 'warn' : 'err');
+        addLog(code, 'مرفوض', false);
+      }
+      $('againBtn').style.display = 'flex';
+
+    }).catch(function (err) {
+      busy = false;
+      show('⛔ ' + escapeHtml(err.message), 'err');
+      $('againBtn').style.display = 'flex';
+    });
+  }
+
+  /* -------------------------------------------------- الأزرار ----- */
+
+  $('againBtn').addEventListener('click', function () {
+    hideResult();
+    lastCode = '';
+    $('againBtn').style.display = 'none';
+    startCamera();
+  });
+
+  $('startBtn').addEventListener('click', function () {
+    hideResult();
+    startCamera();
+  });
+
+  $('manualBtn').addEventListener('click', function () {
+    var v = $('manualCode').value.trim();
+    if (!v) return;
+    $('manualCode').value = '';
+    submit(v);
+  });
+
+  $('manualCode').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') $('manualBtn').click();
+  });
+
+  // إيقاف الكاميرا عند إخفاء الصفحة — يوفّر البطارية ويحرّر الكاميرا
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      stopCamera().then(function () {
+        if (!busy) $('startBtn').style.display = 'flex';
+      });
+    }
+  });
+
+  window.addEventListener('beforeunload', function () { stopCamera(); });
+
+})();
 </script>
 </body>
 </html>

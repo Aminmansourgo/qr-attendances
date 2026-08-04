@@ -77,10 +77,12 @@
              padding:8px 4px; border-bottom:1px solid var(--line); font-size:13px; }
   .log-row span:last-child { color:var(--muted); font-size:12px; white-space:nowrap; }
 
-  .manual { display:flex; gap:8px; margin-top:10px; }
-  .manual input { flex:1; padding:12px; border:1.5px solid var(--line);
-                  border-radius:10px; font-family:inherit; font-size:16px; text-align:center; }
-  .manual button { flex:none; width:90px; min-height:auto; margin:0; }
+  .manual-box { margin-top:14px; padding-top:14px; border-top:1px dashed var(--line); }
+  .or { text-align:center; color:var(--muted); font-size:13px; margin-bottom:8px; }
+  .manual-box input { width:100%; padding:13px; border:1.5px solid var(--line);
+                      border-radius:10px; font-family:inherit; font-size:16px; text-align:center; }
+  .pick { text-align:center; font-size:13px; margin-top:8px; min-height:20px; color:var(--muted); }
+  .pick b { color:var(--navy); }
 
   .fatal { background:#fff; border-radius:16px; padding:30px 20px; text-align:center;
            color:var(--red); font-weight:700; line-height:1.9; }
@@ -107,9 +109,12 @@
       <button class="btn btn-green" id="againBtn" style="display:none">🔄 مسح خادم آخر</button>
       <button class="btn btn-ghost" id="startBtn" style="display:none">▶️ تشغيل الكاميرا</button>
 
-      <div class="manual">
-        <input id="manualCode" placeholder="أو اكتب الكود يدويًا" autocomplete="off">
-        <button class="btn" id="manualBtn" style="margin-top:0">تسجيل</button>
+      <div class="manual-box">
+        <div class="or">أو سجّل يدويًا بالاسم</div>
+        <input id="nameSearch" list="rosterList" placeholder="اكتب أول حروف اسم الخادم…" autocomplete="off">
+        <datalist id="rosterList"></datalist>
+        <div id="pickInfo" class="pick"></div>
+        <button class="btn" id="manualBtn" disabled>تسجيل يدوي</button>
       </div>
 
       <div class="counter">تم تسجيل <b id="count">0</b> خادم في هذه الجلسة</div>
@@ -176,6 +181,16 @@
     });
   }
 
+  /** إعادة محاولة صامتة — Apps Script أحيانًا يتأخر في البدء البارد. */
+  function jsonpRetry(query, tries) {
+    tries = tries || 3;
+    return jsonp(query).catch(function (err) {
+      if (tries <= 1) throw err;
+      return new Promise(function (r) { setTimeout(r, 1200); })
+        .then(function () { return jsonpRetry(query, tries - 1); });
+    });
+  }
+
   /* -------------------------------------------------- الواجهة ------ */
 
   function show(message, type) {
@@ -218,7 +233,7 @@
   $('app').style.display = 'block';
   show('<span class="spinner" style="border-color:rgba(26,35,126,.3);border-top-color:#1a237e"></span> جاري التحقق من الجلسة…', 'info');
 
-  jsonp('api=scanInfo&key=' + encodeURIComponent(KEY))
+  jsonpRetry('api=scanInfo&key=' + encodeURIComponent(KEY))
     .then(function (res) {
       if (!res || !res.success) {
         fatal('⛔ ' + escapeHtml((res && res.message) || 'جلسة المسح غير صالحة.') +
@@ -229,10 +244,65 @@
       $('sessionMeta').textContent  = res.sessionTitle + '  •  ' + res.date;
       hideResult();
       startCamera();
+      loadRoster();
     })
     .catch(function (err) {
       fatal('⛔ ' + escapeHtml(err.message));
     });
+
+  /* -------------------------------------------------- القائمة ------ */
+
+  var roster = [], byName = {}, picked = null;
+
+  /**
+   * قائمة الخدام للتسجيل بالاسم بدل حفظ الأكواد.
+   * تُجلب بمفتاح الجلسة فقط، وتنتهي بانتهائه، وتحتوي الاسم والمجموعة فقط.
+   */
+  function loadRoster() {
+    jsonpRetry('api=scanRoster&key=' + encodeURIComponent(KEY)).then(function (res) {
+      if (!res || !res.success) return;
+      roster = res.servants || [];
+      byName = {};
+      roster.forEach(function (s) { (byName[s.name] = byName[s.name] || []).push(s); });
+
+      $('rosterList').innerHTML = Object.keys(byName).map(function (n) {
+        return '<option value="' + escapeHtml(n) + '"></option>';
+      }).join('');
+    }).catch(function () { /* التسجيل بالكود يظل متاحًا */ });
+  }
+
+  function onNamePick() {
+    var v = $('nameSearch').value.trim();
+    var hits = byName[v] || [];
+
+    if (hits.length === 1) {
+      picked = hits[0];
+      $('pickInfo').innerHTML = 'الكود: <b>' + escapeHtml(picked.code) + '</b>' +
+        (picked.group ? ' — ' + escapeHtml(picked.group) : '');
+      $('manualBtn').disabled = false;
+      return;
+    }
+
+    picked = null;
+    $('manualBtn').disabled = true;
+
+    if (hits.length > 1) {
+      $('pickInfo').innerHTML = '⚠️ يوجد ' + hits.length + ' بنفس الاسم — اكتب الكود بدلًا من الاسم';
+      return;
+    }
+
+    // قد يكون المدخَل كودًا مباشرًا
+    var up = v.toUpperCase();
+    var byCode = roster.filter(function (s) { return s.code.toUpperCase() === up; })[0];
+    if (byCode) {
+      picked = byCode;
+      $('pickInfo').innerHTML = '<b>' + escapeHtml(byCode.name) + '</b>';
+      $('manualBtn').disabled = false;
+      return;
+    }
+
+    $('pickInfo').textContent = v ? 'لم يتم العثور على هذا الاسم' : '';
+  }
 
   /* -------------------------------------------------- الكاميرا ----- */
 
@@ -291,8 +361,8 @@
     stopCamera().then(function () {
       show('<span class="spinner" style="border-color:rgba(26,35,126,.3);border-top-color:#1a237e"></span> جاري التسجيل…', 'info');
 
-      return jsonp('api=scanQR&key=' + encodeURIComponent(KEY) +
-                   '&decodedText=' + encodeURIComponent(code));
+      return jsonpRetry('api=scanQR&key=' + encodeURIComponent(KEY) +
+                        '&decodedText=' + encodeURIComponent(code));
     }).then(function (res) {
       busy = false;
       if (!res) throw new Error('رد غير مفهوم من السيرفر.');
@@ -330,15 +400,21 @@
     startCamera();
   });
 
+  $('nameSearch').addEventListener('input', onNamePick);
+  $('nameSearch').addEventListener('change', onNamePick);
+
   $('manualBtn').addEventListener('click', function () {
-    var v = $('manualCode').value.trim();
-    if (!v) return;
-    $('manualCode').value = '';
-    submit(v);
+    if (!picked) return;
+    var code = picked.code;
+    $('nameSearch').value = '';
+    $('pickInfo').textContent = '';
+    $('manualBtn').disabled = true;
+    picked = null;
+    submit(code);
   });
 
-  $('manualCode').addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') $('manualBtn').click();
+  $('nameSearch').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && picked) $('manualBtn').click();
   });
 
   // إيقاف الكاميرا عند إخفاء الصفحة — يوفّر البطارية ويحرّر الكاميرا

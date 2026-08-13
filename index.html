@@ -84,6 +84,32 @@
   .pick { text-align:center; font-size:13px; margin-top:8px; min-height:20px; color:var(--muted); }
   .pick b { color:var(--navy); }
 
+  /* نتائج البحث — بديل datalist الذي لا يبحث بالعربية بشكل موثوق */
+  .results { max-height:210px; overflow-y:auto; margin-top:8px;
+             border-radius:10px; display:none; }
+  .results.show { display:block; border:1px solid var(--line); }
+  .res-row { padding:12px 10px; border-bottom:1px solid var(--line); cursor:pointer;
+             display:flex; justify-content:space-between; align-items:center; gap:8px;
+             background:#fff; }
+  .res-row:last-child { border-bottom:none; }
+  .res-row:active, .res-row.on { background:#e8eaf6; }
+  .res-row b { font-size:14px; }
+  .res-row span { font-size:12px; color:var(--muted); white-space:nowrap; }
+  .res-empty { padding:14px; text-align:center; color:var(--muted); font-size:13px; background:#fff; }
+
+  /* درجة التحضير داخل الماسح */
+  .prep-box { margin-top:14px; padding-top:14px; border-top:1px dashed var(--line); }
+  .prep-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+  .prep-grid button { min-height:56px; border:2px solid var(--line); border-radius:10px;
+                      background:#fff; font-family:inherit; cursor:pointer; padding:4px;
+                      display:flex; flex-direction:column; align-items:center;
+                      justify-content:center; gap:2px; }
+  .prep-grid button b { font-size:12px; color:#1f2233; }
+  .prep-grid button span { font-size:16px; font-weight:700; color:var(--muted); }
+  .prep-grid button.on { border-color:var(--navy); background:#e8eaf6; }
+  .prep-grid button.on span { color:var(--navy); }
+  .prep-note { text-align:center; font-size:12px; color:var(--muted); margin-top:8px; }
+
   .fatal { background:#fff; border-radius:16px; padding:30px 20px; text-align:center;
            color:var(--red); font-weight:700; line-height:1.9; }
 </style>
@@ -109,10 +135,21 @@
       <button class="btn btn-green" id="againBtn" style="display:none">🔄 مسح خادم آخر</button>
       <button class="btn btn-ghost" id="startBtn" style="display:none">▶️ تشغيل الكاميرا</button>
 
+      <div class="prep-box">
+        <div class="or">درجة التحضير / البحث</div>
+        <div class="prep-grid" id="prepGrid">
+          <button data-p="0"><b>لم يحضّر</b><span>0</span></button>
+          <button data-p="4"><b>جزئي</b><span>4</span></button>
+          <button data-p="8"><b>كامل</b><span>8</span></button>
+          <button data-p="" class="on"><b>لاحقًا</b><span>—</span></button>
+        </div>
+        <div class="prep-note" id="prepNote">لم تُحدَّد — تُرصد لاحقًا من صفحة الرصد</div>
+      </div>
+
       <div class="manual-box">
         <div class="or">أو سجّل يدويًا بالاسم</div>
-        <input id="nameSearch" list="rosterList" placeholder="اكتب أول حروف اسم الخادم…" autocomplete="off">
-        <datalist id="rosterList"></datalist>
+        <input id="nameSearch" placeholder="اكتب أول حروف اسم الخادم…" autocomplete="off">
+        <div id="results" class="results"></div>
         <div id="pickInfo" class="pick"></div>
         <button class="btn" id="manualBtn" disabled>تسجيل يدوي</button>
       </div>
@@ -252,56 +289,81 @@
 
   /* -------------------------------------------------- القائمة ------ */
 
-  var roster = [], byName = {}, picked = null;
+  var roster = [], picked = null, prep = '';
 
-  /**
-   * قائمة الخدام للتسجيل بالاسم بدل حفظ الأكواد.
-   * تُجلب بمفتاح الجلسة فقط، وتنتهي بانتهائه، وتحتوي الاسم والمجموعة فقط.
-   */
+  /** توحيد النص العربي — يتجاوز فروق التشكيل والمسافات وأشكال الألف والياء. */
+  function normAr(v) {
+    return String(v == null ? '' : v)
+      .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+      .replace(/[أإآٱ]/g, 'ا')
+      .replace(/ى/g, 'ي')
+      .replace(/ة/g, 'ه')
+      .replace(/[ؤئ]/g, 'ء')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  }
+
   function loadRoster() {
     jsonpRetry('api=scanRoster&key=' + encodeURIComponent(KEY)).then(function (res) {
       if (!res || !res.success) return;
-      roster = res.servants || [];
-      byName = {};
-      roster.forEach(function (s) { (byName[s.name] = byName[s.name] || []).push(s); });
-
-      $('rosterList').innerHTML = Object.keys(byName).map(function (n) {
-        return '<option value="' + escapeHtml(n) + '"></option>';
-      }).join('');
+      roster = (res.servants || []).map(function (s) {
+        return {
+          code: s.code, name: s.name, group: s.group,
+          key: s.key || (normAr(s.name) + ' ' + String(s.code).toUpperCase())
+        };
+      });
     }).catch(function () { /* التسجيل بالكود يظل متاحًا */ });
   }
 
-  function onNamePick() {
-    var v = $('nameSearch').value.trim();
-    var hits = byName[v] || [];
-
-    if (hits.length === 1) {
-      picked = hits[0];
-      $('pickInfo').innerHTML = 'الكود: <b>' + escapeHtml(picked.code) + '</b>' +
-        (picked.group ? ' — ' + escapeHtml(picked.group) : '');
-      $('manualBtn').disabled = false;
-      return;
-    }
-
+  /**
+   * بحث حقيقي بدل <datalist>.
+   * datalist لا يطابق الحروف العربية في منتصف الاسم على معظم المتصفحات،
+   * فكان البحث بأول حروف الاسم لا يُظهر شيئًا.
+   */
+  function doSearch() {
+    var raw = $('nameSearch').value.trim();
+    var box = $('results');
     picked = null;
     $('manualBtn').disabled = true;
+    $('pickInfo').textContent = '';
 
-    if (hits.length > 1) {
-      $('pickInfo').innerHTML = '⚠️ يوجد ' + hits.length + ' بنفس الاسم — اكتب الكود بدلًا من الاسم';
+    if (raw.length < 2) { box.className = 'results'; box.innerHTML = ''; return; }
+
+    var q = normAr(raw);
+    var up = raw.toUpperCase();
+
+    // كل كلمة في البحث يجب أن توجد في الاسم — يسمح بالبحث بالاسم الأول والأخير معًا
+    var words = q.split(' ').filter(Boolean);
+    var hits = roster.filter(function (s) {
+      if (s.code.toUpperCase() === up) return true;
+      return words.every(function (w) { return s.key.indexOf(w) > -1; });
+    }).slice(0, 25);
+
+    box.className = 'results show';
+
+    if (!hits.length) {
+      box.innerHTML = '<div class="res-empty">لا يوجد اسم مطابق لـ «' + escapeHtml(raw) + '»</div>';
       return;
     }
 
-    // قد يكون المدخَل كودًا مباشرًا
-    var up = v.toUpperCase();
-    var byCode = roster.filter(function (s) { return s.code.toUpperCase() === up; })[0];
-    if (byCode) {
-      picked = byCode;
-      $('pickInfo').innerHTML = '<b>' + escapeHtml(byCode.name) + '</b>';
-      $('manualBtn').disabled = false;
-      return;
-    }
+    box.innerHTML = hits.map(function (s, i) {
+      return '<div class="res-row" data-i="' + i + '">' +
+        '<b>' + escapeHtml(s.name) + '</b>' +
+        '<span>' + escapeHtml(s.code) + (s.group ? ' • ' + escapeHtml(s.group) : '') + '</span>' +
+      '</div>';
+    }).join('');
 
-    $('pickInfo').textContent = v ? 'لم يتم العثور على هذا الاسم' : '';
+    box.querySelectorAll('.res-row').forEach(function (row) {
+      row.addEventListener('click', function () {
+        picked = hits[+row.dataset.i];
+        box.querySelectorAll('.res-row').forEach(function (r) { r.classList.remove('on'); });
+        row.classList.add('on');
+        $('pickInfo').innerHTML = 'المحدَّد: <b>' + escapeHtml(picked.name) + '</b> — ' +
+                                  escapeHtml(picked.code);
+        $('manualBtn').disabled = false;
+      });
+    });
   }
 
   /* -------------------------------------------------- الكاميرا ----- */
@@ -362,7 +424,8 @@
       show('<span class="spinner" style="border-color:rgba(26,35,126,.3);border-top-color:#1a237e"></span> جاري التسجيل…', 'info');
 
       return jsonpRetry('api=scanQR&key=' + encodeURIComponent(KEY) +
-                        '&decodedText=' + encodeURIComponent(code));
+                        '&decodedText=' + encodeURIComponent(code) +
+                        (prep === '' ? '' : '&prep=' + encodeURIComponent(prep)));
     }).then(function (res) {
       busy = false;
       if (!res) throw new Error('رد غير مفهوم من السيرفر.');
@@ -400,13 +463,14 @@
     startCamera();
   });
 
-  $('nameSearch').addEventListener('input', onNamePick);
-  $('nameSearch').addEventListener('change', onNamePick);
+  $('nameSearch').addEventListener('input', doSearch);
 
   $('manualBtn').addEventListener('click', function () {
     if (!picked) return;
     var code = picked.code;
     $('nameSearch').value = '';
+    $('results').className = 'results';
+    $('results').innerHTML = '';
     $('pickInfo').textContent = '';
     $('manualBtn').disabled = true;
     picked = null;
@@ -415,6 +479,18 @@
 
   $('nameSearch').addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && picked) $('manualBtn').click();
+  });
+
+  // أزرار درجة التحضير — تبقى محفوظة بين المسحات لتسريع العمل
+  document.querySelectorAll('#prepGrid button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('#prepGrid button').forEach(function (x) { x.classList.remove('on'); });
+      b.classList.add('on');
+      prep = b.dataset.p;
+      $('prepNote').textContent = prep === ''
+        ? 'لم تُحدَّد — تُرصد لاحقًا من صفحة الرصد'
+        : 'ستُسجَّل ' + prep + ' من 8 مع كل مسحة — غيّرها قبل مسح خادم آخر';
+    });
   });
 
   // إيقاف الكاميرا عند إخفاء الصفحة — يوفّر البطارية ويحرّر الكاميرا

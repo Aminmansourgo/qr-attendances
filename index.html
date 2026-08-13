@@ -345,6 +345,13 @@
    * datalist لا يطابق الحروف العربية في منتصف الاسم على معظم المتصفحات،
    * فكان البحث بأول حروف الاسم لا يُظهر شيئًا.
    */
+  var searchTimer = null, searchSeq = 0;
+
+  /**
+   * البحث يعمل على مسارين:
+   *  1) القائمة المحلية إن حُمِّلت (فوري)
+   *  2) بحث على السيرفر إن لم تُحمَّل — فلا يحتاج الأدمن حفظ أي كود
+   */
   function doSearch() {
     var raw = $('nameSearch').value.trim();
     var box = $('results');
@@ -354,7 +361,7 @@
 
     if (raw.length < 2) { box.className = 'results'; box.innerHTML = ''; return; }
 
-    // يقبل الكود مباشرة حتى لو لم تُحمَّل القائمة
+    // الكود يُقبل مباشرة بلا أي بحث
     if (/^[Ss]\d{2,}$/.test(raw)) {
       picked = { code: raw.toUpperCase(), name: raw.toUpperCase() };
       $('manualBtn').disabled = false;
@@ -363,30 +370,53 @@
       return;
     }
 
-    var q = normAr(raw);
-    var up = raw.toUpperCase();
-
-    // كل كلمة في البحث يجب أن توجد في الاسم — يسمح بالبحث بالاسم الأول والأخير معًا
-    var words = q.split(' ').filter(Boolean);
-    var hits = roster.filter(function (s) {
-      if (s.code.toUpperCase() === up) return true;
-      return words.every(function (w) { return s.key.indexOf(w) > -1; });
-    }).slice(0, 25);
-
-    box.className = 'results show';
-
-    // نميّز بين «القائمة لم تُحمَّل» و«الاسم غير موجود فعلًا»
-    if (!roster.length) {
-      box.innerHTML = '<div class="res-empty">⛔ ' +
-        escapeHtml(rosterError || 'قائمة الأسماء غير محمّلة.') +
-        '<br><br><b>استخدم الكود بدلًا من الاسم</b>، أو أعد تحميل الصفحة.' +
-        '</div>';
+    // 1) القائمة المحلية
+    if (roster.length) {
+      var q = normAr(raw);
+      var up = raw.toUpperCase();
+      var words = q.split(' ').filter(Boolean);
+      var hits = roster.filter(function (s) {
+        if (s.code.toUpperCase() === up) return true;
+        return words.every(function (w) { return s.key.indexOf(w) > -1; });
+      }).slice(0, 25);
+      showResults(hits, raw, roster.length + ' خادمًا في القائمة');
       return;
     }
 
+    // 2) بحث على السيرفر (مع تأخير بسيط لتقليل الطلبات أثناء الكتابة)
+    box.className = 'results show';
+    box.innerHTML = '<div class="res-empty">جاري البحث…</div>';
+
+    clearTimeout(searchTimer);
+    var mySeq = ++searchSeq;
+    searchTimer = setTimeout(function () {
+      jsonp('api=searchServants&key=' + encodeURIComponent(KEY) +
+            '&q=' + encodeURIComponent(raw), 15000)
+        .then(function (res) {
+          if (mySeq !== searchSeq) return;          // نتيجة قديمة — نتجاهلها
+          if (!res || !res.success) {
+            box.innerHTML = '<div class="res-empty">⛔ ' +
+              escapeHtml((res && res.message) || 'تعذّر البحث') +
+              '<br><br><b>اكتب الكود بدلًا من الاسم</b> (مثل S040)</div>';
+            return;
+          }
+          showResults(res.servants || [], raw, 'بحث مباشر');
+        })
+        .catch(function (err) {
+          if (mySeq !== searchSeq) return;
+          box.innerHTML = '<div class="res-empty">⛔ ' + escapeHtml(err.message) +
+            '<br><br><b>اكتب الكود بدلًا من الاسم</b></div>';
+        });
+    }, 350);
+  }
+
+  function showResults(hits, raw, note) {
+    var box = $('results');
+    box.className = 'results show';
+
     if (!hits.length) {
       box.innerHTML = '<div class="res-empty">لا يوجد اسم مطابق لـ «' + escapeHtml(raw) +
-        '»<br><small>القائمة تحتوي ' + roster.length + ' خادمًا — جرّب جزءًا من الاسم أو الكود</small></div>';
+        '»<br><small>' + escapeHtml(note) + '</small></div>';
       return;
     }
 

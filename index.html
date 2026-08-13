@@ -304,16 +304,28 @@
       .toLowerCase();
   }
 
+  var rosterError = '';
+
   function loadRoster() {
+    rosterError = 'جاري تحميل أسماء الخدام…';
     jsonpRetry('api=scanRoster&key=' + encodeURIComponent(KEY)).then(function (res) {
-      if (!res || !res.success) return;
+      if (!res) { rosterError = 'لم يصل رد من السيرفر.'; return; }
+      if (!res.success) {
+        // ⚠️ كان هذا الخطأ يُبتلع صامتًا فتبقى القائمة فارغة
+        // ويظهر «لا يوجد اسم مطابق» لكل اسم مهما كتبت
+        rosterError = res.message || 'تعذّر جلب الأسماء.';
+        return;
+      }
       roster = (res.servants || []).map(function (s) {
         return {
           code: s.code, name: s.name, group: s.group,
           key: s.key || (normAr(s.name) + ' ' + String(s.code).toUpperCase())
         };
       });
-    }).catch(function () { /* التسجيل بالكود يظل متاحًا */ });
+      rosterError = roster.length ? '' : 'قائمة الأسماء فارغة — راجع تبويب Servants_DB.';
+    }).catch(function (err) {
+      rosterError = 'تعذّر الاتصال: ' + err.message;
+    });
   }
 
   /**
@@ -330,6 +342,15 @@
 
     if (raw.length < 2) { box.className = 'results'; box.innerHTML = ''; return; }
 
+    // يقبل الكود مباشرة حتى لو لم تُحمَّل القائمة
+    if (/^[Ss]\d{2,}$/.test(raw)) {
+      picked = { code: raw.toUpperCase(), name: raw.toUpperCase() };
+      $('manualBtn').disabled = false;
+      $('pickInfo').innerHTML = 'سيُسجَّل بالكود: <b>' + escapeHtml(picked.code) + '</b>';
+      box.className = 'results'; box.innerHTML = '';
+      return;
+    }
+
     var q = normAr(raw);
     var up = raw.toUpperCase();
 
@@ -342,8 +363,18 @@
 
     box.className = 'results show';
 
+    // نميّز بين «القائمة لم تُحمَّل» و«الاسم غير موجود فعلًا»
+    if (!roster.length) {
+      box.innerHTML = '<div class="res-empty">⛔ ' +
+        escapeHtml(rosterError || 'قائمة الأسماء غير محمّلة.') +
+        '<br><br><b>استخدم الكود بدلًا من الاسم</b>، أو أعد تحميل الصفحة.' +
+        '</div>';
+      return;
+    }
+
     if (!hits.length) {
-      box.innerHTML = '<div class="res-empty">لا يوجد اسم مطابق لـ «' + escapeHtml(raw) + '»</div>';
+      box.innerHTML = '<div class="res-empty">لا يوجد اسم مطابق لـ «' + escapeHtml(raw) +
+        '»<br><small>القائمة تحتوي ' + roster.length + ' خادمًا — جرّب جزءًا من الاسم أو الكود</small></div>';
       return;
     }
 

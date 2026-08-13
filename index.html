@@ -238,6 +238,18 @@
 
   function hideResult() { $('result').className = 'result'; }
 
+  /** يختصر رسالة الرفض إلى سبب واضح يظهر في السجل. */
+  function shortReason(msg) {
+    var m = String(msg || '').replace(/<[^>]+>/g, ' ');
+    if (/مسجّل بالفعل|مسجل بالفعل/.test(m)) return 'مسجّل بالفعل';
+    if (/لم تبدأ/.test(m))                   return 'لم تبدأ بعد';
+    if (/انتهى وقت/.test(m))                 return 'انتهى الوقت';
+    if (/غير مسجّل|غير مسجل/.test(m))        return 'كود غير موجود';
+    if (/جلسة/.test(m))                      return 'جلسة منتهية';
+    if (/رمز QR/.test(m))                    return 'رمز غير صالح';
+    return m.replace(/[⛔⚠️✅]/g, '').trim().slice(0, 40) || 'مرفوض';
+  }
+
   function addLog(name, status, good) {
     $('logCard').style.display = 'block';
     var row = document.createElement('div');
@@ -467,9 +479,11 @@
         show(res.message, 'ok');
         addLog(res.servantName || code, res.status || 'تم', true);
       } else {
-        var isWarn = /مسجّل بالفعل|مسجل بالفعل/.test(res.message || '');
-        show(res.message, isWarn ? 'warn' : 'err');
-        addLog(code, 'مرفوض', false);
+        var msg = res.message || '';
+        var isWarn = /مسجّل بالفعل|مسجل بالفعل/.test(msg);
+        show(msg, isWarn ? 'warn' : 'err');
+        // ⚠️ كان السجل يكتب «مرفوض» فقط فيخفي السبب الحقيقي
+        addLog(code, shortReason(msg), false);
       }
       $('againBtn').style.display = 'flex';
 
